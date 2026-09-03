@@ -249,3 +249,7 @@ A callback or current object updated on connection and cleanup.
 - [Live Act examples](https://act.luon.dev)
 - [View language](https://docs.luon.dev/frontend/view)
 - [UI and styling](https://docs.luon.dev/frontend/ui)
+
+## License
+
+[MIT](LICENSE) © predeve

@@ -1,7 +1,8 @@
 {
   "name": "@luon/act",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Direct reactive DOM core for Luon",
+  "license": "MIT",
   "keywords": [
     "luon",
     "reactive",
