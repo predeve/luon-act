@@ -1,0 +1,38 @@
+{
+  "name": "@luon/act",
+  "version": "0.0.3",
+  "description": "Direct reactive DOM core for Luon",
+  "keywords": [
+    "luon",
+    "reactive",
+    "dom",
+    "jsx",
+    "typescript",
+    "frontend"
+  ],
+  "homepage": "https://pkg.luon.dev/packages/act/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/predeve/luon-act.git"
+  },
+  "bugs": {
+    "url": "https://github.com/predeve/luon/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://pkg.luon.dev"
+  },
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./src/jsx-runtime.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "happy-dom": "^20.12.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "jsxImportSource": "@luon/act",
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "test/**/*.tsx"
+  ]
+}
