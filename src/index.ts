@@ -8,7 +8,7 @@ export {
   type PortalTarget,
 } from "./dom.ts";
 export { act } from "./read.ts";
-export { batch, effect, state, untrack } from "./reactive.ts";
+export { batch, effect, memo, state, untrack, type Memo } from "./reactive.ts";
 export type {
   Child,
   Component,

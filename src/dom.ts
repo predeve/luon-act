@@ -62,13 +62,22 @@ function own(node: Node, clean: Clean) {
   found.add(clean);
 }
 
+function finish(runs: Array<() => void>) {
+  const errors: unknown[] = [];
+  for (const run of runs) {
+    try { run(); } catch (error) { errors.push(error); }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length) throw new AggregateError(errors, "DOM cleanup failed.");
+}
+
 function drop(node: Node) {
   const found = cleans.get(node);
-  if (found) {
-    cleans.delete(node);
-    for (const clean of found) clean();
-  }
-  for (const child of [...node.childNodes]) drop(child);
+  cleans.delete(node);
+  finish([
+    ...found || [],
+    ...[...node.childNodes].map((child) => () => drop(child)),
+  ]);
 }
 
 function nodeValue(value: unknown): value is Node {
@@ -285,10 +294,10 @@ export function bindProps(element: Element, values: Props) {
 }
 
 function remove(nodes: Node[]) {
-  for (const node of nodes) {
-    drop(node);
-    node.parentNode?.removeChild(node);
-  }
+  finish(nodes.map((node) => () => {
+    try { drop(node); }
+    finally { node.parentNode?.removeChild(node); }
+  }));
 }
 
 function insertRead(host: Host, source: Read, before: Node | null) {
@@ -302,31 +311,46 @@ function insertRead(host: Host, source: Read, before: Node | null) {
   host.insertBefore(start, before);
   host.insertBefore(end, before);
   let nodes: Node[] = [];
-  const stop = effect(() => {
-    const parent = end.parentNode as Host | null;
-    if (!parent) return;
-    const fragment = document.createDocumentFragment();
-    const parentQueue = refQueue;
-    const refs = parentQueue || [];
-    if (!parentQueue) refQueue = refs;
-    let next: Node[];
-    try {
-      next = insert(fragment, source.read() as Child, null);
-    } finally {
-      if (!parentQueue) refQueue = undefined;
-    }
-    remove(nodes);
-    parent.insertBefore(fragment, end);
-    nodes = next;
-    if (!parentQueue) {
-      for (const connect of refs) connect();
-    }
-  });
+  let stop: () => void;
+  try {
+    stop = effect(() => {
+      const parent = end.parentNode as Host | null;
+      if (!parent) return;
+      const fragment = document.createDocumentFragment();
+      const parentQueue = refQueue;
+      const refs = parentQueue || [];
+      if (!parentQueue) refQueue = refs;
+      let next: Node[];
+      try {
+        next = insert(fragment, source.read() as Child, null);
+      } catch (error) {
+        finish([
+          () => remove([...fragment.childNodes]),
+          () => { throw error; },
+        ]);
+        throw error;
+      } finally {
+        if (!parentQueue) refQueue = undefined;
+      }
+      remove(nodes);
+      parent.insertBefore(fragment, end);
+      nodes = next;
+      if (!parentQueue) {
+        for (const connect of refs) connect();
+      }
+    });
+  } catch (error) {
+    finish([
+      () => source.dispose?.(),
+      () => remove([start, ...nodes, end]),
+      () => { throw error; },
+    ]);
+    throw error;
+  }
   own(start, () => {
-    stop();
-    source.dispose?.();
-    remove(nodes);
+    const previous = nodes;
     nodes = [];
+    finish([stop, () => source.dispose?.(), () => remove(previous)]);
   });
   return [start, end];
 }

@@ -1,3 +1,5 @@
+export type Memo<Value> = (() => Value) & { dispose(): void };
+
 type Dep = Set<Runner>;
 type Key = PropertyKey | typeof iterate;
 
@@ -5,6 +7,7 @@ type Runner = {
   active: boolean;
   deps: Set<Dep>;
   run: () => void;
+  invalidate?: () => void;
 };
 
 const iterate = Symbol("iterate");
@@ -63,21 +66,35 @@ function execute(run: Runner) {
 function flush() {
   if (flushing || depth) return;
   flushing = true;
+  const errors: unknown[] = [];
   try {
     while (queued.size) {
       const runs = [...queued];
       queued.clear();
-      for (const run of runs) execute(run);
+      for (const run of runs) {
+        try { execute(run); } catch (error) { errors.push(error); }
+      }
     }
   } finally {
     flushing = false;
   }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length) throw new AggregateError(errors, "Reactive updates failed.");
 }
 
-function queue(run: Runner) {
-  if (!run.active || run === current) return;
-  queued.add(run);
-  flush();
+function schedule(runs: Iterable<Runner>) {
+  // Invalidate every derived value before flushing any consumer.
+  depth++;
+  try {
+    for (const run of runs) {
+      if (!run.active || run === current) continue;
+      if (run.invalidate) run.invalidate();
+      else queued.add(run);
+    }
+  } finally {
+    depth--;
+    flush();
+  }
 }
 
 function trigger(target: object, key: PropertyKey, added = false) {
@@ -99,7 +116,7 @@ function trigger(target: object, key: PropertyKey, added = false) {
       for (const run of found) runs.add(run);
     }
   }
-  for (const run of runs) queue(run);
+  schedule(runs);
 }
 
 export function effect(run: () => void) {
@@ -108,13 +125,67 @@ export function effect(run: () => void) {
     deps: new Set(),
     run,
   };
-  execute(task);
+  try {
+    execute(task);
+  } catch (error) {
+    task.active = false;
+    queued.delete(task);
+    clean(task);
+    throw error;
+  }
   return () => {
     if (!task.active) return;
     task.active = false;
     queued.delete(task);
     clean(task);
   };
+}
+
+/** Lazy derived value. Dispose it when its owner is released. */
+export function memo<Value>(get: () => Value): Memo<Value> {
+  const target = {};
+  let dirty = true;
+  let reading = false;
+  let failed = false;
+  let value: Value;
+  const task: Runner = {
+    active: true,
+    deps: new Set(),
+    run: () => { value = get(); },
+    invalidate() {
+      if (dirty && !failed) return;
+      dirty = true;
+      failed = false;
+      trigger(target, "value");
+    },
+  };
+  const read = () => {
+    if (!task.active) throw new Error("Cannot read a disposed memo.");
+    if (reading) throw new Error("Circular computed dependency.");
+    track(target, "value");
+    if (dirty) {
+      reading = true;
+      try {
+        execute(task);
+        dirty = false;
+        failed = false;
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        reading = false;
+      }
+    }
+    return value;
+  };
+  return Object.freeze(Object.assign(read, {
+    dispose() {
+      if (!task.active) return;
+      task.active = false;
+      clean(task);
+      queued.delete(task);
+    },
+  }));
 }
 
 export function batch<Value>(run: () => Value): Value {

@@ -253,3 +253,23 @@ A callback or current object updated on connection and cleanup.
 ## License
 
 [MIT](LICENSE) © predeve
+
+## Cached derivations
+
+`memo(get)` returns a lazy getter with `.dispose()`. Repeated reads reuse its
+result until a tracked property changes. Conditional dependencies are replaced
+on recomputation; derived values invalidate before effects flush. Keep getters
+pure and release the memo when its owner is removed.
+
+```ts
+import { memo, state } from "@luon/act";
+const data = state({ price: 10, count: 2 });
+const total = memo(() => data.price * data.count);
+total(); // 20; cached until price or count changes
+data.count = 3;
+total(); // 30
+total.dispose();
+```
+
+View's `memoView` adds automatic View ownership to this primitive. DOM cleanup
+continues after a callback throws, preserving errors while releasing siblings.
