@@ -6,6 +6,25 @@ Part of [Luon](https://www.luon.dev) — Direct reactive DOM core for Luon.
 [Source](https://github.com/predeve/luon-act) ·
 [Developer tools](https://www.luon.dev/tools)
 
+Update the state. Only the DOM that reads it changes.
+
+```tsx
+/** @jsxImportSource @luon/act */
+import { act, mount, state } from "@luon/act";
+
+const counter = state({ count: 0 });
+
+mount(
+  <button onClick={() => counter.count++}>
+    Count: {act(() => counter.count)}
+  </button>,
+  document.getElementById("app")!,
+);
+```
+
+The page needs an element with `id="app"` and a TSX build step.
+Read the implementation: [state](src/reactive.ts) · [DOM](src/dom.ts).
+
 ## Install
 
 ```bash
