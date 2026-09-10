@@ -293,11 +293,35 @@ export function bindProps(element: Element, values: Props) {
   return element;
 }
 
-function remove(nodes: Node[]) {
-  finish(nodes.map((node) => () => {
-    try { drop(node); }
-    finally { node.parentNode?.removeChild(node); }
-  }));
+type Leave = { leave(): Promise<void>; cancel(): void };
+const leaveKey = Symbol.for("@luon/act/leave");
+function leaving(nodes: Node[]): Leave[] {
+  return nodes.flatMap((node) => {
+    const hook = Reflect.get(node, leaveKey) as Leave | undefined;
+    return [...hook ? [hook] : [], ...leaving([...node.childNodes])];
+  });
+}
+
+function remove(nodes: Node[], animate = false, done = () => {}) {
+  const hooks = leaving(nodes);
+  const finishNodes = () => {
+    for (const node of nodes) node.parentNode?.removeChild(node);
+    done();
+  };
+  if (animate && hooks.length) {
+    const pending = hooks.map((hook) => hook.leave());
+    try { finish(nodes.map((node) => () => drop(node))); }
+    catch (error) {
+      for (const hook of hooks) hook.cancel();
+      finishNodes();
+      throw error;
+    }
+    void Promise.allSettled(pending).then(finishNodes);
+  } else {
+    for (const hook of hooks) hook.cancel();
+    try { finish(nodes.map((node) => () => drop(node))); }
+    finally { finishNodes(); }
+  }
 }
 
 function insertRead(host: Host, source: Read, before: Node | null) {
@@ -311,6 +335,7 @@ function insertRead(host: Host, source: Read, before: Node | null) {
   host.insertBefore(start, before);
   host.insertBefore(end, before);
   let nodes: Node[] = [];
+  const departures = new Set<Node>();
   let stop: () => void;
   try {
     stop = effect(() => {
@@ -332,7 +357,11 @@ function insertRead(host: Host, source: Read, before: Node | null) {
       } finally {
         if (!parentQueue) refQueue = undefined;
       }
-      remove(nodes);
+      const previous = nodes;
+      for (const node of previous) departures.add(node);
+      remove(previous, true, () => {
+        for (const node of previous) departures.delete(node);
+      });
       parent.insertBefore(fragment, end);
       nodes = next;
       if (!parentQueue) {
@@ -350,7 +379,8 @@ function insertRead(host: Host, source: Read, before: Node | null) {
   own(start, () => {
     const previous = nodes;
     nodes = [];
-    finish([stop, () => source.dispose?.(), () => remove(previous)]);
+    finish([stop, () => source.dispose?.(), () => remove(previous),
+      () => remove([...departures])]);
   });
   return [start, end];
 }

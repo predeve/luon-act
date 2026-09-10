@@ -1,6 +1,6 @@
 {
   "name": "@luon/act",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Direct reactive DOM core for Luon",
   "license": "MIT",
   "keywords": [
@@ -33,7 +33,7 @@
     "./jsx-dev-runtime": "./src/jsx-runtime.ts"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.1",
-    "happy-dom": "^20.14.0"
+    "@types/bun": "^1.4.2",
+    "happy-dom": "^20.14.3"
   }
 }
